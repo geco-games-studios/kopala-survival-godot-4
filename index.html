@@ -140,139 +140,65 @@ body {
 
 		<script src="index.js"></script>
 		<script>
-// Handle COI service worker reload and start the game
-(function() {
-    // Check if we need to reload for cross-origin isolation
-    if (!window.crossOriginIsolated && !sessionStorage.getItem('coi-reloaded')) {
-        sessionStorage.setItem('coi-reloaded', 'true');
-        console.log('Reloading page to enable cross-origin isolation...');
-        window.location.reload();
-        return;
-    }
+// Handle COI service worker reload
+if (!window.crossOriginIsolated && !sessionStorage.getItem('coi-reloaded')) {
+    sessionStorage.setItem('coi-reloaded', 'true');
+    window.location.reload();
+} else {
+    sessionStorage.removeItem('coi-reloaded');
     
-    // Clear the reload flag after successful isolation
-    if (window.crossOriginIsolated && sessionStorage.getItem('coi-reloaded')) {
-        sessionStorage.removeItem('coi-reloaded');
-        console.log('Cross-origin isolation enabled!');
-    }
+    // Standard Godot 4.0 initialization
+    var engine = new Engine(GODOT_CONFIG);
     
-    // Game configuration
-    const GODOT_CONFIG = {
-        "args": [],
-        "canvasResizePolicy": 2,
-        "executable": "index",
-        "experimentalVK": true,
-        "fileSizes": {
-            "index.pck": 13245056,
-            "index.wasm": 1642372
-        },
-        "focusCanvas": true,
-        "gdextensionLibs": [],
-        "serviceWorker": "index.service.worker.js"
-    };
-    
-    const engine = new Engine(GODOT_CONFIG);
-    
-    const INDETERMINATE_STATUS_STEP_MS = 100;
+    // Status display elements
     const statusProgress = document.getElementById('status-progress');
     const statusProgressInner = document.getElementById('status-progress-inner');
     const statusIndeterminate = document.getElementById('status-indeterminate');
     const statusNotice = document.getElementById('status-notice');
     
-    let initializing = true;
-    let statusMode = 'hidden';
-    let animationCallbacks = [];
-    
-    function animate(time) {
-        animationCallbacks.forEach((callback) => callback(time));
-        requestAnimationFrame(animate);
-    }
-    requestAnimationFrame(animate);
-    
-    function animateStatusIndeterminate(ms) {
-        const i = Math.floor((ms / INDETERMINATE_STATUS_STEP_MS) % 8);
-        if (statusIndeterminate.children[i].style.borderTopColor === '') {
-            Array.prototype.slice.call(statusIndeterminate.children).forEach((child) => {
-                child.style.borderTopColor = '';
-            });
-            statusIndeterminate.children[i].style.borderTopColor = '#dfdfdf';
-        }
-    }
-    
     function setStatusMode(mode) {
-        if (statusMode === mode || !initializing) {
-            return;
+        statusProgress.style.display = 'none';
+        statusIndeterminate.style.display = 'none';
+        statusNotice.style.display = 'none';
+        
+        if (mode === 'progress') {
+            statusProgress.style.display = 'block';
+        } else if (mode === 'indeterminate') {
+            statusIndeterminate.style.display = 'block';
+        } else if (mode === 'notice') {
+            statusNotice.style.display = 'block';
         }
-        [statusProgress, statusIndeterminate, statusNotice].forEach((elem) => {
-            elem.style.display = 'none';
-        });
-        animationCallbacks = animationCallbacks.filter(function (value) {
-            return (value !== animateStatusIndeterminate);
-        });
-        switch (mode) {
-            case 'progress':
-                statusProgress.style.display = 'block';
-                break;
-            case 'indeterminate':
-                statusIndeterminate.style.display = 'block';
-                animationCallbacks.push(animateStatusIndeterminate);
-                break;
-            case 'notice':
-                statusNotice.style.display = 'block';
-                break;
-            case 'hidden':
-                break;
-            default:
-                throw new Error('Invalid status mode');
-        }
-        statusMode = mode;
     }
     
     function setStatusNotice(text) {
-        while (statusNotice.lastChild) {
-            statusNotice.removeChild(statusNotice.lastChild);
+        while (statusNotice.firstChild) {
+            statusNotice.removeChild(statusNotice.firstChild);
         }
-        const lines = text.split('\n');
-        lines.forEach((line) => {
-            statusNotice.appendChild(document.createTextNode(line));
-            statusNotice.appendChild(document.createElement('br'));
-        });
+        statusNotice.appendChild(document.createTextNode(text));
     }
     
-    function displayFailureNotice(err) {
-        const msg = err.message || err;
-        console.error(msg);
-        setStatusNotice(msg);
-        setStatusMode('notice');
-        initializing = false;
-    }
-    
+    // Check for missing features
     const missing = Engine.getMissingFeatures();
-    if (missing.length !== 0) {
-        const missingMsg = 'Error\nThe following features required to run Godot projects on the Web are missing:\n';
-        displayFailureNotice(missingMsg + missing.join('\n'));
+    if (missing.length > 0) {
+        setStatusNotice('Error: Missing features - ' + missing.join(', '));
+        setStatusMode('notice');
     } else {
         setStatusMode('indeterminate');
+        
         engine.startGame({
-            'onProgress': function (current, total) {
+            onProgress: function(current, total) {
                 if (total > 0) {
-                    statusProgressInner.style.width = `${(current / total) * 100}%`;
+                    statusProgressInner.style.width = (current / total) * 100 + '%';
                     setStatusMode('progress');
-                    if (current === total) {
-                        setTimeout(() => {
-                            setStatusMode('indeterminate');
-                        }, 500);
-                    }
-                } else {
-                    setStatusMode('indeterminate');
                 }
-            },
-        }).then(() => {
-            setStatusMode('hidden');
-            initializing = false;
-        }, displayFailureNotice);
+            }
+        }).catch(function(err) {
+            setStatusNotice('Error: ' + (err.message || err));
+            setStatusMode('notice');
+            console.error(err);
+        });
     }
-})();
+}
 		</script>
 	</body>
 </html>
