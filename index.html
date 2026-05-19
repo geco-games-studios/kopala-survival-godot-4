@@ -115,8 +115,6 @@ body {
 
 	</head>
 	<body>
-		<script src="coi-serviceworker.js"></script> 
-		
 		<canvas id="canvas">
 			HTML5 canvas appears to be unsupported in the current browser.<br >
 			Please try updating or use a different browser.
@@ -225,11 +223,11 @@ const engine = new Engine(GODOT_CONFIG);
 	} else {
 		setStatusMode('indeterminate');
 		engine.startGame({
-			onProgress: function (loaded, total) {
+			'onProgress': function (current, total) {
 				if (total > 0) {
-					statusProgressInner.style.width = `${(loaded / total) * 100}%`;
+					statusProgressInner.style.width = `${(current / total) * 100}%`;
 					setStatusMode('progress');
-					if (loaded === total) {
+					if (current === total) {
 						// wait for progress bar animation
 						setTimeout(() => {
 							setStatusMode('indeterminate');
